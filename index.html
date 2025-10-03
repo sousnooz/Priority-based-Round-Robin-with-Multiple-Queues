@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CPU Scheduling Simulator</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/popper.js@1.16.0/dist/umd/popper.min.js"></script>
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/js/bootstrap.min.js"></script>
+
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+    <link rel="stylesheet" href="style.css">
+    <script src="app.js" type="text/javascript"></script>
+</head>
+<body>
+    <header>
+<nav class="navbar navbar-light bg-light">
+    <span class="navbar-text">
+        Priority-based Round Robin with Multiple Queues
+    </span>
+</nav>
+</header>
+
+<div class="container mt-3">
+
+     <!-- Process Input and Simulation Parameters -->
+    <div class="row mb-3">
+        <!-- Left Column: Process Table and Inputs -->
+        <div class="col-9">
+            <!-- Process List Table -->
+            <table class="table table-bordered" id="tblProcessList">
+                <thead>
+                    <tr>
+                        <th>Process ID</th>
+                        <th>Arrival Time</th>
+                        <th>Burst Time</th>
+                        <th>Priority</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+
+            <!-- Input fields to add new processes -->
+                <div class="row">
+                    <div class="col">
+                        <input id="processID" class="form-control" placeholder="Process ID" type="number" min="0">
+                    </div>
+                    <div class="col">
+                        <input id="arrivalTime" class="form-control" placeholder="Arrival Time" type="number" min="0">
+                    </div>
+                    <div class="col">
+                        <input id="burstTime" class="form-control" placeholder="Burst Time" type="number" min="0">
+                    </div>
+                    <div class="col">
+                        <input id="priority" class="form-control" placeholder="Priority" type="number" min="1">
+                    </div>
+                    <div class="col">
+                        <button id="btnAddProcess" class="btn btn-primary">Add Process</button>
+                    </div>
+                </div>
+            </div>
+        
+             <!-- Right Column: Simulation Parameters -->
+            <div class="col-3 border border-primary p-3">
+                <div class="form-group">
+                    <label>Time Quantum:</label>
+                    <input id="timeQuantum" class="form-control" type="number" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Aging Time Units:</label>
+                    <input id="aging" class="form-control" type="number" min="1">
+                </div>
+                <div class="form-group">
+                    <label>Priority Decrease Units:</label>
+                    <input id="priorityDecrease" class="form-control" type="number" min="1">
+            </div>
+
+                <!-- Simulation control buttons -->
+                <button id="btnCalculate" class="btn btn-primary btn-block">Show Entire Solution</button>
+                <button id="btnStepByStep" class="btn btn-secondary btn-block">Step-by-Step</button>
+
+                <!-- Step-by-step simulation control -->
+                <div id="nextBtnWrapper" style="display:none;" class="mt-2">
+                    <button id="btnNextTime" class="btn btn-info btn-block">Next Time Unit</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Gantt Chart Container -->
+    <div id="ganttChart" class="gantt-container"></div>
+
+    <div class="row mt-3">
+        <div class="col-9">
+            <table class="table table-bordered" id="tblResults">
+                <thead>
+                    <tr>
+                        <th>Process ID</th>
+                        <th>Arrival Time</th>
+                        <th>Burst Time</th>
+                        <th>Completed Time</th>
+                        <th>Waiting Time</th>
+                        <th>Turnaround Time</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+        </div>
+        <div class="col-3 border border-primary p-3">
+            <div class="form-group">
+                <label>Average Turnaround Time</label>
+                <input id="avgTurnaroundTime" class="form-control" disabled>
+            </div>
+            <div class="form-group">
+                <label>Average Waiting Time</label>
+                <input id="avgWaitingTime" class="form-control" disabled>
+            </div>
+            <div class="form-group">
+                <label>Throughput</label>
+                <input id="throughput" class="form-control" disabled>
+            </div>
+        </div>
+    </div>
+</div>
+    <footer class="page-footer bg-light p-2 mt-5">
+
+        <div class="footer-copyright text-center py-3">
+           <span>
+            <b> OS LAB EXERCISE 3 </b>
+            SUBMITTED BY ESCANILLA | GATMAITAN | HARUN | RODIL
+            </span>
+        </div>
+        <!--
+        The ROUND ROBIN simulation was from this source code, but the entirerity of the project (Added the priority queues) is from us :3
+        <div class="footer-copyright text-center py-3">
+           <span>
+               Copyright &copy; Hirusha Cooray | 
+               <a target="_blank" href="https://github.com/hirushacooray/cpu-scheduling-sim">View Source on Github</a>
+           </span>
+        </div>
+        -->
+    
+    </footer>
+    <script>
+        
+    document.getElementById("btnCalculate").addEventListener("click", function() {
+        // Show the Next Time Unit button after Calculate is clicked
+        document.getElementById("nextBtnWrapper").style.display = "block";
+    });
+        function isFacebookApp() {
+            var ua = navigator.userAgent || navigator.vendor || window.opera;
+            return (ua.indexOf("FBAN") > -1) || (ua.indexOf("FBAV") > -1);
+        }
+
+        function openInBrowser(target, browserScheme) {
+            var ifc = document.createElement("div");
+            ifc.innerHTML = `<iframe src='${browserScheme}${target}' style='width:0;height:0;border:0; border:none;visibility: hidden;'></iframe>`;
+            document.body.appendChild(ifc);
+        }
+        if(isFacebookApp()){
+            // your action here if user using Facebook in-app browser
+            // alert('Are you using Facebook Browser? To get better experience, try press [...] and Open the blog in Chrome or Safari. Thank you!');
+            openInBrowser(window.location.href, "googlechrome://navigate?url=");
+        }
+    </script>
+    
+</body>
+</html>

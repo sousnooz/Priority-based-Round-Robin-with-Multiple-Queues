@@ -1,0 +1,29 @@
+.buttonAlgo{
+    border-radius: 15px !important; 
+    width: 70px;
+}
+
+#timeQuantum{
+  width: 80px;
+}
+
+.gantt-container {
+    border:1px solid #ccc;
+    padding:5px;
+    margin-top:20px;
+}
+.gantt-block {
+    height:40px;
+    line-height:40px;
+    text-align:center;
+    color:#fff;
+    margin-right:2px;
+}
+.gantt-time {
+    text-align:center;
+    font-size:10px;
+    width:30px;
+    margin-right:2px;
+}
+
+
