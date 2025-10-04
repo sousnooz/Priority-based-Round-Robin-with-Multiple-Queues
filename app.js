@@ -202,7 +202,7 @@ function runNextUnit() {
     applyAging();
     drawPriorityQueues();
 
-    // 2. If no current process or quantum expired, select new process
+    // 2. Select a process if none running or quantum expired
     if (!currentProcess || currentQuantumRemaining === 0) {
         let pr = getHighestPriority();
         if (pr === null) {
@@ -212,13 +212,12 @@ function runNextUnit() {
             drawGanttChart();
             return;
         }
-        // Always pick the **first process in the highest-priority queue**
         currentProcess = queues[pr].shift();
-        // Quantum is either remaining burst or scheduler quantum
+        currentProcess.waitingInQueue = 0; // reset waiting since it's running
         currentQuantumRemaining = Math.min(currentProcess.burstTime, quantum);
     }
 
-    // 3. Execute current process for 1 time unit
+    // 3. Execute process for 1 unit
     currentProcess.burstTime--;
     currentProcess.timeProcessed++;
     currentProcess.lastExecutedAt = simulationTime;
@@ -226,7 +225,7 @@ function runNextUnit() {
     simulationTime++;
     currentQuantumRemaining--;
 
-    // 4. Check if process finished
+    // 4. Check if finished
     if (currentProcess.burstTime === 0) {
         currentProcess.completedTime = simulationTime;
         currentProcess.turnAroundTime = currentProcess.completedTime - currentProcess.arrivalTime;
@@ -235,19 +234,21 @@ function runNextUnit() {
         currentProcess = null;
         currentQuantumRemaining = 0;
     } else if (currentQuantumRemaining === 0) {
-        // Quantum expired but process not finished, requeue it at the **end of its priority queue**
+        // Quantum expired but not finished: move to end of queue
         if (!queues[currentProcess.priority]) queues[currentProcess.priority] = [];
         queues[currentProcess.priority].push(currentProcess);
         currentProcess = null;
     }
 
-    // 5. Update results if all done
+    // 5. Update results if done
     if (allProcesses.length === 0 && Object.values(queues).every(q => q.length === 0) && !currentProcess) {
         updateResults();
     }
 
     drawGanttChart();
 }
+
+
 
 function drawPriorityQueues(){
     for(let pr = 1; pr <= 3; pr++){
