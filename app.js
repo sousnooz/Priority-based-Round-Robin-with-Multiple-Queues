@@ -12,6 +12,9 @@ $(document).ready(function(){
     let quantum = 0;             // Time quantum for round-robin
     let agingTime = 0;           // Time units after which priority aging occurs
     let priorityDecreaseTime = 0;// Time units after which priority may decrease
+    let currentProcess = null;
+    let currentQuantumRemaining = 0;
+
 
     // Default processes (editable by user)
     let defaultProcesses = [
@@ -190,66 +193,76 @@ $(document).ready(function(){
         updateResults();
     }
 
-    // ==========================
-    // Step-by-Step Simulation
-    // ==========================
-    function runNextUnit(){
-        addArrivals();
-        applyAging();
+// ==========================
+// Step-by-Step / Next Unit Simulation
+// ==========================
+function runNextUnit() {
+    // 1. Add newly arrived processes to queues
+    addArrivals();
+    applyAging();
+    drawPriorityQueues();
 
-        let currentPriority = getHighestPriority();
-        if(currentPriority===null){
-            schedule.push({processId:null, start:simulationTime, duration:1});
+    // 2. If no current process or quantum expired, select new process
+    if (!currentProcess || currentQuantumRemaining === 0) {
+        let pr = getHighestPriority();
+        if (pr === null) {
+            // CPU idle
+            schedule.push({ processId: null, start: simulationTime, duration: 1 });
             simulationTime++;
             drawGanttChart();
             return;
         }
+        // Always pick the **first process in the highest-priority queue**
+        currentProcess = queues[pr].shift();
+        // Quantum is either remaining burst or scheduler quantum
+        currentQuantumRemaining = Math.min(currentProcess.burstTime, quantum);
+    }
 
-        let proc = queues[currentPriority].shift();
-        let timeSlice = Math.min(proc.burstTime, quantum);
+    // 3. Execute current process for 1 time unit
+    currentProcess.burstTime--;
+    currentProcess.timeProcessed++;
+    currentProcess.lastExecutedAt = simulationTime;
+    schedule.push({ processId: currentProcess.processID, start: simulationTime, duration: 1 });
+    simulationTime++;
+    currentQuantumRemaining--;
 
-        for(let t=0;t<timeSlice;t++){
-            simulationTime++;
-            proc.burstTime--;
-            proc.timeProcessed++;
-            proc.lastExecutedAt=simulationTime;
+    // 4. Check if process finished
+    if (currentProcess.burstTime === 0) {
+        currentProcess.completedTime = simulationTime;
+        currentProcess.turnAroundTime = currentProcess.completedTime - currentProcess.arrivalTime;
+        currentProcess.waitingTime = currentProcess.turnAroundTime - currentProcess.originalBurstTime;
+        completedList.push(currentProcess);
+        currentProcess = null;
+        currentQuantumRemaining = 0;
+    } else if (currentQuantumRemaining === 0) {
+        // Quantum expired but process not finished, requeue it at the **end of its priority queue**
+        if (!queues[currentProcess.priority]) queues[currentProcess.priority] = [];
+        queues[currentProcess.priority].push(currentProcess);
+        currentProcess = null;
+    }
 
-            addArrivals();
-            applyAging();
+    // 5. Update results if all done
+    if (allProcesses.length === 0 && Object.values(queues).every(q => q.length === 0) && !currentProcess) {
+        updateResults();
+    }
 
-            // Preemption check
-            let hp = getHighestPriority();
-            if(hp!==null && hp < proc.priority && proc.burstTime>0){
-                if(!queues[proc.priority]) queues[proc.priority]=[];
-                queues[proc.priority].push(proc);
-                proc=null;
-                break;
-            }
+    drawGanttChart();
+}
 
-            schedule.push({processId:proc.processID, start:simulationTime-1, duration:1});
-        }
-
-        // Requeue or complete process
-        if(proc && proc.burstTime>0){
-            if(proc.timeProcessed>=priorityDecreaseTime){
-                proc.priority++;
-                proc.timeProcessed=0;
-            }
-            if(!queues[proc.priority]) queues[proc.priority]=[];
-            queues[proc.priority].push(proc);
-        } else if(proc && proc.burstTime===0){
-            proc.completedTime=simulationTime;
-            proc.turnAroundTime=proc.completedTime-proc.arrivalTime;
-            proc.waitingTime=proc.turnAroundTime-proc.originalBurstTime;
-            completedList.push(proc);
-        }
-
-        drawGanttChart();
-
-        if(allProcesses.length===0 && Object.values(queues).every(q=>q.length===0)){
-            updateResults();
+function drawPriorityQueues(){
+    for(let pr = 1; pr <= 3; pr++){
+        let container = $(`#queue${pr} .queue-content`);
+        container.empty();
+        if(queues[pr] && queues[pr].length > 0){
+            queues[pr].forEach(p=>{
+                let block = $('<div class="queue-block"></div>');
+                block.text(`P${p.processID} (${p.burstTime})`);
+                container.append(block);
+            });
         }
     }
+}
+
 
     // ==========================
     // Helper Functions
@@ -292,53 +305,59 @@ $(document).ready(function(){
 
     // Draw Gantt chart based on schedule
     function drawGanttChart(){
-        const container = $('#ganttChart');
-        container.empty();
+    const container = $('#ganttChart');
+    container.empty();
 
-        let chartDiv = $('<div style="display:flex;align-items:flex-end;"></div>');
-        let timeDiv = $('<div style="display:flex;"></div>');
+    let chartDiv = $('<div style="display:flex;align-items:flex-end;"></div>');
+    let timeDiv = $('<div style="display:flex;"></div>');
 
-        let lastPid=null;
-        let duration=0;
+    let lastPid = null;
+    let duration = 0;
+    let startTime = 0;
 
-        for(let i=0;i<schedule.length;i++){
-            let s=schedule[i];
-            if(s.processId===lastPid){
-                duration++;
-            } else {
-                if(lastPid!==null){
-                    let block=$('<div class="gantt-block"></div>');
-                    block.width(duration*30);
-                    block.css('background-color', lastPid?randomColor(lastPid):'#ccc');
-                    block.text(lastPid? 'P'+lastPid:'');
-                    chartDiv.append(block);
+    for(let i=0;i<schedule.length;i++){
+        let s = schedule[i];
 
-                    for(let j=0;j<duration;j++){
-                        let t=$('<div class="gantt-time"></div>').width(30).text(simulationTime - schedule.length + i - duration + j + 1);
-                        timeDiv.append(t);
-                    }
+        if(s.processId === lastPid){
+            duration++;
+        } else {
+            if(lastPid !== null){
+                let block = $('<div class="gantt-block"></div>');
+                block.width(duration * 30);
+                block.css('background-color', lastPid ? randomColor(lastPid) : '#ccc');
+                block.text(lastPid ? 'P'+lastPid : 'Idle');
+                chartDiv.append(block);
+
+                // Add time labels
+                for(let j=0;j<duration;j++){
+                    let t = $('<div class="gantt-time"></div>').width(30).text(startTime + j);
+                    timeDiv.append(t);
                 }
-                lastPid=s.processId;
-                duration=1;
             }
+            lastPid = s.processId;
+            duration = 1;
+            startTime = s.start; // take the start time from schedule
         }
-
-        if(lastPid!==null){
-            let block=$('<div class="gantt-block"></div>');
-            block.width(duration*30);
-            block.css('background-color', lastPid?randomColor(lastPid):'#ccc');
-            block.text(lastPid? 'P'+lastPid:'');
-            chartDiv.append(block);
-
-            for(let j=0;j<duration;j++){
-                let t=$('<div class="gantt-time"></div>').width(30).text(simulationTime - duration + j + 1);
-                timeDiv.append(t);
-            }
-        }
-
-        container.append(chartDiv);
-        container.append(timeDiv);
     }
+
+    // Append last block
+    if(lastPid !== null){
+        let block = $('<div class="gantt-block"></div>');
+        block.width(duration * 30);
+        block.css('background-color', lastPid ? randomColor(lastPid) : '#ccc');
+        block.text(lastPid ? 'P'+lastPid : 'Idle');
+        chartDiv.append(block);
+
+        for(let j=0;j<duration;j++){
+            let t = $('<div class="gantt-time"></div>').width(30).text(startTime + j);
+            timeDiv.append(t);
+        }
+    }
+
+    container.append(chartDiv);
+    container.append(timeDiv);
+}
+
 
     // Generate color for Gantt blocks
     function randomColor(seed){

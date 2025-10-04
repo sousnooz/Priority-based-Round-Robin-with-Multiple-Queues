@@ -25,5 +25,24 @@
     width:30px;
     margin-right:2px;
 }
+.queue {
+    margin-bottom: 10px;
+}
+.queue-content {
+    display: flex;
+    gap: 5px;
+    min-height: 40px;
+}
+.queue-block {
+    width: 40px;
+    height: 40px;
+    background-color: #17a2b8;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 12px;
+    border-radius: 5px;
+}
 
 
