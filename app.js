@@ -31,28 +31,26 @@ $(document).ready(function(){
     // Delete Process Button
     // ==========================
     $('#tblProcessList').on('click', '.btnDelete', function(){
-        let row = $(this).closest('tr');                   // Get the row of the clicked button
-        let pid = parseInt(row.find('td:first').text());   // Get the processID
-        processList = processList.filter(p => p.processID !== pid); // Remove from processList
-        row.remove();                                     // Remove row from table
+        let row = $(this).closest('tr');
+        let pid = parseInt(row.find('td:first').text());
+        processList = processList.filter(p => p.processID !== pid);
+        row.remove();
     });
 
     // ==========================
     // Prefill Inputs & Populate Table
     // ==========================
-    // Prefill input fields with first default process
     $('#processID').val(defaultProcesses[0].pid);
     $('#arrivalTime').val(defaultProcesses[0].at);
     $('#burstTime').val(defaultProcesses[0].bt);
     $('#priority').val(defaultProcesses[0].pr);
 
-    // Populate process table with defaultProcesses
     defaultProcesses.forEach(p => {
         let proc = {
             processID: p.pid,
             arrivalTime: p.at,
             burstTime: p.bt,
-            originalBurstTime: p.bt, // keep original for calculations
+            originalBurstTime: p.bt,
             priority: p.pr,
             waitingTime: 0,
             lastExecutedAt: null,
@@ -60,7 +58,6 @@ $(document).ready(function(){
         };
         processList.push(proc);
 
-        // Append to HTML table
         $('#tblProcessList tbody').append(
             `<tr>
                 <td contenteditable="true">${proc.processID}</td>
@@ -70,38 +67,166 @@ $(document).ready(function(){
                 <td><button class="btn btn-danger btn-sm btnDelete">Delete</button></td>
             </tr>`
         );
+    });
+
+    // ==========================
+    // FIXED: Editable Table Cell Validation (moved outside)
+    // ==========================
+    $('#tblProcessList').on('blur', 'td[contenteditable="true"]', function () {
+        let row = $(this).closest('tr');
+        let rowIndex = row.index();
+        let colIndex = $(this).index();
+        let newValue = $(this).text().trim();
+        let oldPID = parseInt(row.find('td:eq(0)').data('original-value') || row.find('td:eq(0)').text());
+
+        // Must not be blank
+        if (newValue === '') {
+            alert("Field cannot be empty!");
+            $(this).text($(this).data('original-value') || "1");
+            return;
+        }
+
+        // Must be numeric
+        if (isNaN(newValue)) {
+            alert("Value must be a number!");
+            $(this).text($(this).data('original-value') || "1");
+            return;
+        }
+
+        newValue = parseInt(newValue);
+
+        // Apply rules depending on column
+        switch (colIndex) {
+            case 0: // Process ID
+                if (newValue <= 0) {
+                    alert("Process ID must be greater than 0!");
+                    $(this).text($(this).data('original-value') || "1");
+                    return;
+                }
+                // Check for duplicate PID
+                let duplicate = false;
+                $('#tblProcessList tbody tr').each(function(idx) {
+                    if (idx !== rowIndex && parseInt($(this).find('td:eq(0)').text()) === newValue) {
+                        duplicate = true;
+                        return false;
+                    }
+                });
+                if (duplicate) {
+                    alert("Process ID already exists!");
+                    $(this).text($(this).data('original-value') || "1");
+                    return;
+                }
+                break;
+
+            case 1: // Arrival Time
+                if (newValue < 0 || newValue > 50) {
+                    alert("Arrival Time must be between 0 and 50!");
+                    $(this).text($(this).data('original-value') || "0");
+                    return;
+                }
+                break;
+
+            case 2: // Burst Time
+                if (newValue <= 0 || newValue > 50) {
+                    alert("Burst Time must be between 1 and 50!");
+                    $(this).text($(this).data('original-value') || "1");
+                    return;
+                }
+                break;
+
+            case 3: // Priority
+                if (newValue < 1 || newValue > 3) {
+                    alert("Priority must be 1, 2, or 3!");
+                    $(this).text($(this).data('original-value') || "1");
+                    return;
+                }
+                break;
+        }
+
+        // FIXED: Update processList array when table is edited
+        let pid = parseInt(row.find('td:eq(0)').text());
+        let process = processList.find(p => p.processID === oldPID);
+        
+        if (process) {
+            process.processID = parseInt(row.find('td:eq(0)').text());
+            process.arrivalTime = parseInt(row.find('td:eq(1)').text());
+            process.burstTime = parseInt(row.find('td:eq(2)').text());
+            process.originalBurstTime = parseInt(row.find('td:eq(2)').text());
+            process.priority = parseInt(row.find('td:eq(3)').text());
+        }
+    });
+
+    // Store original value on focus
+    $('#tblProcessList').on('focus', 'td[contenteditable="true"]', function () {
+        $(this).data('original-value', $(this).text());
     });
 
     // ==========================
     // Add New Process Button
     // ==========================
-    $('#btnAddProcess').on('click', function(){
+    $('#btnAddProcess').on('click', function () {
         let pid = $('#processID').val();
         let at = $('#arrivalTime').val();
         let bt = $('#burstTime').val();
         let pr = $('#priority').val();
 
-        // Validate input fields
-        if(pid===''||at===''||bt===''||pr===''){
+        // Input Validations
+        if (pid === '' || at === '' || bt === '' || pr === '') {
             alert('Fill all fields!');
             return;
         }
 
-        // Create new process object
+        pid = parseInt(pid);
+        at = parseInt(at);
+        bt = parseInt(bt);
+        pr = parseInt(pr);
+
+        if (isNaN(pid) || isNaN(at) || isNaN(bt) || isNaN(pr)) {
+            alert('All values must be numbers!');
+            return;
+        }
+
+        if (pid <= 0) {
+            alert('Process ID must be greater than 0!');
+            return;
+        }
+
+        if (at < 0 || at > 50) {
+            alert('Arrival time must be between 0 and 50!');
+            return;
+        }
+
+        if (bt <= 0 || bt > 50) {
+            alert('Burst time must be between 1 and 50!');
+            return;
+        }
+
+        if (pr < 1 || pr > 3) {
+            alert('Priority must be between 1 and 3!');
+            return;
+        }
+
+        // FIXED: Check for duplicate Process ID
+        if (processList.some(p => p.processID === pid)) {
+            alert('Process ID already exists!');
+            return;
+        }
+
+        // Process Object
         let proc = {
-            processID: parseInt(pid),
-            arrivalTime: parseInt(at),
-            burstTime: parseInt(bt),
-            originalBurstTime: parseInt(bt),
-            priority: parseInt(pr),
-            waitingTime:0,
-            lastExecutedAt:null,
-            timeProcessed:0,
+            processID: pid,
+            arrivalTime: at,
+            burstTime: bt,
+            originalBurstTime: bt,
+            priority: pr,
+            waitingTime: 0,
+            lastExecutedAt: null,
+            timeProcessed: 0,
         };
 
         processList.push(proc);
 
-        // Append new process to table
+        // Add to Table
         $('#tblProcessList tbody').append(
             `<tr>
                 <td contenteditable="true">${proc.processID}</td>
@@ -112,28 +237,31 @@ $(document).ready(function(){
             </tr>`
         );
 
-        // Reset input fields
-        $('#processID').val(parseInt(pid)+1);
+        // Reset Input Fields
+        $('#processID').val(pid + 1);
         $('#arrivalTime').val('');
         $('#burstTime').val('');
         $('#priority').val('');
     });
 
+
     // ==========================
     // Prefill simulation parameters
     // ==========================
-    $('#timeQuantum').val(3);       // default quantum
-    $('#aging').val(5);             // default aging time
-    $('#priorityDecrease').val(6);  // default priority decrease time
+    $('#timeQuantum').val(3);
+    $('#aging').val(5);
+    $('#priorityDecrease').val(6);
 
     // ==========================
-    // Reset Simulation Function
+    // FIXED: Reset Simulation Function
     // ==========================
     function resetSimulation(){
-        simulationTime=0;
-        schedule=[];
-        completedList=[];
-        queues={};
+        simulationTime = 0;
+        schedule = [];
+        completedList = [];
+        queues = {};
+        currentProcess = null;           // FIXED: Reset current process
+        currentQuantumRemaining = 0;     // FIXED: Reset quantum remaining
 
         // Deep copy of processes for simulation
         allProcesses = processList.map(p => ({...p}));
@@ -142,14 +270,37 @@ $(document).ready(function(){
         let priorities = [...new Set(allProcesses.map(p=>p.priority))].sort((a,b)=>a-b);
         for(let p of priorities) queues[p]=[];
 
-        // Read simulation parameters
+        // FIXED: Validate simulation parameters
         quantum = parseInt($('#timeQuantum').val());
         agingTime = parseInt($('#aging').val());
         priorityDecreaseTime = parseInt($('#priorityDecrease').val());
 
+        if (isNaN(quantum) || quantum <= 0) {
+            alert('Time Quantum must be a positive number!');
+            return false;
+        }
+        if (isNaN(agingTime) || agingTime <= 0) {
+            alert('Aging Time Units must be a positive number!');
+            return false;
+        }
+        if (isNaN(priorityDecreaseTime) || priorityDecreaseTime <= 0) {
+            alert('Priority Decrease Units must be a positive number!');
+            return false;
+        }
+
         // Clear previous results
         $('#tblResults tbody').empty();
         $('#ganttChart').empty();
+        $('#avgTurnaroundTime').val('');
+        $('#avgWaitingTime').val('');
+        $('#throughput').val('');
+        
+        // FIXED: Clear priority queues display
+        for(let pr = 1; pr <= 3; pr++){
+            $(`#queue${pr} .queue-content`).empty();
+        }
+
+        return true; // FIXED: Return success status
     }
 
     // ==========================
@@ -160,8 +311,8 @@ $(document).ready(function(){
             alert('Insert some processes first!');
             return;
         }
-        resetSimulation();
-        $('#nextBtnWrapper').hide(); // hide step-by-step
+        if(!resetSimulation()) return; // FIXED: Check if reset was successful
+        $('#nextBtnWrapper').hide();
         runFullSimulation();
     });
 
@@ -170,13 +321,13 @@ $(document).ready(function(){
             alert('Insert some processes first!');
             return;
         }
-        resetSimulation();
+        if(!resetSimulation()) return; // FIXED: Check if reset was successful
         $('#nextBtnWrapper').show();
         runNextUnit();
     });
 
     $('#btnNextTime').on('click', function(){
-        if(allProcesses.length>0 || Object.values(queues).some(q=>q.length>0)){
+        if(allProcesses.length>0 || Object.values(queues).some(q=>q.length>0) || currentProcess){
             runNextUnit();
         } else {
             alert('Simulation completed!');
@@ -187,89 +338,85 @@ $(document).ready(function(){
     // Full Simulation Logic
     // ==========================
     function runFullSimulation(){
-        while(allProcesses.length>0 || Object.values(queues).some(q=>q.length>0)){
+        while(allProcesses.length>0 || Object.values(queues).some(q=>q.length>0) || currentProcess){
             runNextUnit();
         }
         updateResults();
     }
 
-// ==========================
-// Step-by-Step / Next Unit Simulation
-// ==========================
-function runNextUnit() {
-    // 1. Add newly arrived processes to queues
-    addArrivals();
-    applyAging();
-    drawPriorityQueues();
+    // ==========================
+    // Step-by-Step / Next Unit Simulation
+    // ==========================
+    function runNextUnit() {
+        // 1. Add newly arrived processes to queues
+        addArrivals();
+        applyAging();
+        drawPriorityQueues();
 
-    // 2. Select a process if none running or quantum expired
-    if (!currentProcess || currentQuantumRemaining === 0) {
-        let pr = getHighestPriority();
-        if (pr === null) {
-            // CPU idle
-            schedule.push({ processId: null, start: simulationTime, duration: 1 });
-            simulationTime++;
-            drawGanttChart();
-            return;
+        // 2. Select a process if none running or quantum expired
+        if (!currentProcess || currentQuantumRemaining === 0) {
+            let pr = getHighestPriority();
+            if (pr === null) {
+                // CPU idle
+                schedule.push({ processId: null, start: simulationTime, duration: 1 });
+                simulationTime++;
+                drawGanttChart();
+                return;
+            }
+            currentProcess = queues[pr].shift();
+            currentProcess.waitingInQueue = 0;
+            currentQuantumRemaining = Math.min(currentProcess.burstTime, quantum);
         }
-        currentProcess = queues[pr].shift();
-        currentProcess.waitingInQueue = 0; // reset waiting since it's running
-        currentQuantumRemaining = Math.min(currentProcess.burstTime, quantum);
+
+        // 3. Execute process for 1 unit
+        currentProcess.burstTime--;
+        currentProcess.timeProcessed++;
+        currentProcess.lastExecutedAt = simulationTime;
+        schedule.push({ processId: currentProcess.processID, start: simulationTime, duration: 1 });
+        simulationTime++;
+        currentQuantumRemaining--;
+
+        // 4. Check if finished
+        if (currentProcess.burstTime === 0) {
+            currentProcess.completedTime = simulationTime;
+            currentProcess.turnAroundTime = currentProcess.completedTime - currentProcess.arrivalTime;
+            currentProcess.waitingTime = currentProcess.turnAroundTime - currentProcess.originalBurstTime;
+            completedList.push(currentProcess);
+            currentProcess = null;
+            currentQuantumRemaining = 0;
+        } else if (currentQuantumRemaining === 0 && currentProcess.burstTime > 0) {
+            // Preempt only if not finished
+            queues[currentProcess.priority] = queues[currentProcess.priority] || [];
+            queues[currentProcess.priority].push(currentProcess);
+            currentProcess = null;
+        }
+
+        // 5. Update results if done
+        if (allProcesses.length === 0 && Object.values(queues).every(q => q.length === 0) && !currentProcess) {
+            updateResults();
+        }
+
+        drawGanttChart();
     }
 
-    // 3. Execute process for 1 unit
-    currentProcess.burstTime--;
-    currentProcess.timeProcessed++;
-    currentProcess.lastExecutedAt = simulationTime;
-    schedule.push({ processId: currentProcess.processID, start: simulationTime, duration: 1 });
-    simulationTime++;
-    currentQuantumRemaining--;
-
-    // 4. Check if finished
-    if (currentProcess.burstTime === 0) {
-        currentProcess.completedTime = simulationTime;
-        currentProcess.turnAroundTime = currentProcess.completedTime - currentProcess.arrivalTime;
-        currentProcess.waitingTime = currentProcess.turnAroundTime - currentProcess.originalBurstTime;
-        completedList.push(currentProcess);
-        currentProcess = null;
-        currentQuantumRemaining = 0;
-    } else if (currentQuantumRemaining === 0) {
-        // Quantum expired but not finished: move to end of queue
-        if (!queues[currentProcess.priority]) queues[currentProcess.priority] = [];
-        queues[currentProcess.priority].push(currentProcess);
-        currentProcess = null;
-    }
-
-    // 5. Update results if done
-    if (allProcesses.length === 0 && Object.values(queues).every(q => q.length === 0) && !currentProcess) {
-        updateResults();
-    }
-
-    drawGanttChart();
-}
-
-
-
-function drawPriorityQueues(){
-    for(let pr = 1; pr <= 3; pr++){
-        let container = $(`#queue${pr} .queue-content`);
-        container.empty();
-        if(queues[pr] && queues[pr].length > 0){
-            queues[pr].forEach(p=>{
-                let block = $('<div class="queue-block"></div>');
-                block.text(`P${p.processID} (${p.burstTime})`);
-                container.append(block);
-            });
+    function drawPriorityQueues(){
+        for(let pr = 1; pr <= 3; pr++){
+            let container = $(`#queue${pr} .queue-content`);
+            container.empty();
+            if(queues[pr] && queues[pr].length > 0){
+                queues[pr].forEach(p=>{
+                    let block = $('<div class="queue-block"></div>');
+                    block.text(`P${p.processID} (${p.burstTime})`);
+                    container.append(block);
+                });
+            }
         }
     }
-}
-
 
     // ==========================
     // Helper Functions
     // ==========================
     
-    // Add newly arrived processes to their queues
     function addArrivals(){
         for(let i=allProcesses.length-1;i>=0;i--){
             if(allProcesses[i].arrivalTime<=simulationTime){
@@ -280,7 +427,6 @@ function drawPriorityQueues(){
         }
     }
 
-    // Aging: Increase priority of waiting processes
     function applyAging(){
         for(let p in queues){
             let q=queues[p];
@@ -297,76 +443,71 @@ function drawPriorityQueues(){
         }
     }
 
-    // Get the highest-priority queue with processes
     function getHighestPriority(){
         let keys=Object.keys(queues).map(Number).sort((a,b)=>a-b);
         for(let k of keys) if(queues[k].length>0) return k;
         return null;
     }
 
-    // Draw Gantt chart based on schedule
     function drawGanttChart(){
-    const container = $('#ganttChart');
-    container.empty();
+        const container = $('#ganttChart');
+        container.empty();
 
-    let chartDiv = $('<div style="display:flex;align-items:flex-end;"></div>');
-    let timeDiv = $('<div style="display:flex;"></div>');
+        // Outer wrapper using grid for alignment
+        let chartGrid = $('<div class="gantt-grid"></div>');
+        chartGrid.css({
+            display: 'grid',
+            gridAutoFlow: 'column',
+            gridAutoColumns: 'minmax(30px, 1fr)', // each unit stretches evenly
+            textAlign: 'center'
+        });
 
-    let lastPid = null;
-    let duration = 0;
-    let startTime = 0;
+        // Build one cell per schedule unit
+        for(let i=0; i<schedule.length; i++){
+            let s = schedule[i];
 
-    for(let i=0;i<schedule.length;i++){
-        let s = schedule[i];
+            let cell = $('<div class="gantt-cell"></div>');
+            cell.css({
+                display: 'flex',
+                flexDirection: 'column',
+                border: '1px solid #ddd',
+                minWidth: '30px'
+            });
 
-        if(s.processId === lastPid){
-            duration++;
-        } else {
-            if(lastPid !== null){
-                let block = $('<div class="gantt-block"></div>');
-                block.width(duration * 30);
-                block.css('background-color', lastPid ? randomColor(lastPid) : '#ccc');
-                block.text(lastPid ? 'P'+lastPid : 'Idle');
-                chartDiv.append(block);
+            // Process block
+            let block = $('<div class="gantt-block"></div>');
+            block.css({
+                flex: '1',
+                backgroundColor: s.processId ? randomColor(s.processId) : '#ccc',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '12px',
+                minHeight: '30px'
+            });
+            block.text(s.processId ? 'P'+s.processId : 'Idle');
 
-                // Add time labels
-                for(let j=0;j<duration;j++){
-                    let t = $('<div class="gantt-time"></div>').width(30).text(startTime + j);
-                    timeDiv.append(t);
-                }
-            }
-            lastPid = s.processId;
-            duration = 1;
-            startTime = s.start; // take the start time from schedule
+            // Time label
+            let timeLabel = $('<div class="gantt-time"></div>');
+            timeLabel.css({
+                fontSize: '10px',
+                borderTop: '1px solid #999'
+            });
+            timeLabel.text(s.start);
+
+            cell.append(block);
+            cell.append(timeLabel);
+            chartGrid.append(cell);
         }
+
+        container.append(chartGrid);
     }
 
-    // Append last block
-    if(lastPid !== null){
-        let block = $('<div class="gantt-block"></div>');
-        block.width(duration * 30);
-        block.css('background-color', lastPid ? randomColor(lastPid) : '#ccc');
-        block.text(lastPid ? 'P'+lastPid : 'Idle');
-        chartDiv.append(block);
-
-        for(let j=0;j<duration;j++){
-            let t = $('<div class="gantt-time"></div>').width(30).text(startTime + j);
-            timeDiv.append(t);
-        }
-    }
-
-    container.append(chartDiv);
-    container.append(timeDiv);
-}
-
-
-    // Generate color for Gantt blocks
     function randomColor(seed){
         const colors=["#007bff","#28a745","#dc3545","#ffc107","#17a2b8"];
         return colors[seed%colors.length];
     }
 
-    // Update results table and summary statistics
     function updateResults(){
         completedList.sort((a,b)=>a.processID-b.processID);
         $('#tblResults tbody').empty();
